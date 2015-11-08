@@ -18,7 +18,7 @@
 //根据计算，得到底部详情scrollView的高度
 #define KSECOND_SCROLLVIEW_HEIGHT (KSCREEN_HEIGHT - KSTATUS_HEIGHT - KFIRST_SCROLLVIEW_HEIGHT)
 //顶部scrollView每个item按钮的宽度
-#define KFIRST_SCROLLVIEW_ITEM_WIDTH 55
+#define KFIRST_SCROLLVIEW_ITEM_WIDTH 70
 
 @interface ViewController () <UIScrollViewDelegate>
 
@@ -26,12 +26,13 @@
 @property (nonatomic, weak) UIScrollView *firstScrollView;
 //底部详情scrollView
 @property (nonatomic, weak) UIScrollView *secondScrollView;
-//顶部scrollView选中按钮的样式
-@property (nonatomic, weak) UIImageView *selectedButtonImageView;
 //item类型的数组
 @property (nonatomic, strong) NSArray *itemsTitlesArray;
 //为了方便，定义一个包含颜色的NSArray（自行取舍）
 @property (nonatomic, strong) NSArray *colorArray;
+
+//记录当前被点击的按钮tag
+@property (nonatomic, assign) NSInteger currentButtonTag;
 
 @end
 
@@ -105,6 +106,9 @@
         [itemButton addTarget:self action:@selector(itemButtonClicked:) forControlEvents:UIControlEventTouchUpInside];
     }
     
+    //设置被点击的按钮tag为0
+    self.currentButtonTag = 100;
+    
 }
 
 //添加第二个scrollview
@@ -137,45 +141,80 @@
 #pragma mark - item button clicked 
 
 - (void) itemButtonClicked:(UIButton *)button {
-    NSInteger buttonTag = button.tag - 100;
-    [UIView animateWithDuration:0.3 animations:^{
-        self.selectedButtonImageView.center = button.center;
-        self.secondScrollView.contentOffset = CGPointMake(buttonTag * KSCREEN_WIDTH, 0);
-    }];
-   
+    //**1.偏移底部详情scrollView
+    NSInteger buttonTag = button.tag - 100;//获取点击按钮的tag
+    self.secondScrollView.contentOffset = CGPointMake(buttonTag * KSCREEN_WIDTH, 0);//设置底部scrollview的内容偏移量
+    
+    //**2.恢复前一个被点击的按钮的样式
+    UIButton *preClickedButton = (UIButton *)[self.view viewWithTag:self.currentButtonTag];
+    preClickedButton.titleLabel.font = [UIFont systemFontOfSize:14.0f];
+    [preClickedButton setTitleColor:[UIColor colorWithRed:0.4 green:0.4 blue:0.4 alpha:1.0] forState:UIControlStateNormal];//标题颜色
+    
+    //**3.设置当前点击按钮样式
+    button.titleLabel.font = [UIFont systemFontOfSize:18.0f];
+    [button setTitleColor:[UIColor colorWithRed:1.0 green:0.3 blue:0.3 alpha:1.0f] forState:UIControlStateNormal];
+    
+    //**4.改变当前点击按钮的tag值
+    self.currentButtonTag = buttonTag + 100;
 }
 
+
 #pragma mark - scrollView delegate
+//正在滑动调用的代理方法
 - (void) scrollViewDidScroll:(UIScrollView *)scrollView {
-    //移动顶部选中的按钮
-    CGFloat secondScrollViewContentOffsetX = scrollView.contentOffset.x - 1;
+    //获取当前第二个scrollView的偏移量
+    CGFloat secondScrollViewContentOffsetX = scrollView.contentOffset.x;
     //获取选中按钮的序号
     int buttonTag = (secondScrollViewContentOffsetX) / KSCREEN_WIDTH;
-   
-//    CGFloat fingerDistance = secondScrollViewContentOffsetX - KSCREEN_WIDTH * buttonTag;
-//    NSLog(@"%f",fingerDistance);
-//    UIButton *buttonNext = (UIButton *)[self.view viewWithTag:(buttonTag + 100 + 1)];
-//    buttonNext.titleLabel.font = [UIFont systemFontOfSize:(14.0 + fingerDistance * 2 / 160.0)];
-//    [buttonNext setTitleColor:[UIColor colorWithRed:(0.4f + 3 * fingerDistance / 1600) green:0.3 blue:0.3 alpha:1.0] forState:UIControlStateNormal];
-//    UIButton *buttonCurr = (UIButton *)[self.view viewWithTag:(buttonTag + 100)];
-//    buttonCurr.titleLabel.font = [UIFont systemFontOfSize:(18.0 - fingerDistance * 2 / 160.0)];
-//    [buttonCurr setTitleColor:[UIColor colorWithRed:(1.0f - 3 * fingerDistance / 1600) green:0.3 blue:0.3 alpha:1.0] forState:UIControlStateNormal];
-//
-////    NSLog(@"%f", secondScrollViewContentOffsetX);
-//    
-//    //判断左滑还是右划
-//    static float newx = 0;
-//    static float oldx = 0;
-//    newx = secondScrollViewContentOffsetX;
-//    if (newx != oldx) {
-//        if (newx > oldx) {
-//             NSLog(@"右划 %d", buttonTag);
-//        } else {
-//            NSLog(@"左滑 %d", buttonTag);
-//        }
-//        
-//        oldx = newx;
-//    }
+    //计算手指滑动了多少距离
+    CGFloat fingerDistance = secondScrollViewContentOffsetX - KSCREEN_WIDTH * buttonTag;
+    //获取到下一个按钮，并改变其字体大小和颜色（根据手指滑动的距离动态改变）
+    UIButton *buttonNext = (UIButton *)[self.view viewWithTag:(buttonTag + 100 + 1)];
+    buttonNext.titleLabel.font = [UIFont systemFontOfSize:(14.0 + fingerDistance * 4 / (KSCREEN_WIDTH))];
+    [buttonNext setTitleColor:[UIColor colorWithRed:(0.4f + 3 * fingerDistance / (KSCREEN_WIDTH * 5)) green:0.3 blue:0.3 alpha:1.0] forState:UIControlStateNormal];
+    //同样方法获取到当前按钮，并改变其字体大小和颜色恢复回原来样式（根据手指滑动的距离动态改变）
+    UIButton *buttonCurr = (UIButton *)[self.view viewWithTag:(buttonTag + 100)];
+    buttonCurr.titleLabel.font = [UIFont systemFontOfSize:(18.0 - fingerDistance * 4 / (KSCREEN_WIDTH))];
+    [buttonCurr setTitleColor:[UIColor colorWithRed:(1.0f - 3 * fingerDistance / (KSCREEN_WIDTH * 5)) green:0.3 blue:0.3 alpha:1.0] forState:UIControlStateNormal];
+}
+//滑动结束调用的代理方法
+- (void) scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
+    //**1.获取选中详情页对应的顶部button
+    //移动顶部选中的按钮
+    CGFloat secondScrollViewContentOffsetX = scrollView.contentOffset.x;
+    //获取选中按钮的序号
+    int buttonTag = (secondScrollViewContentOffsetX) / KSCREEN_WIDTH;
+    //根据按钮号码获取到顶部的按钮
+    UIButton *buttonCurr = (UIButton *)[self.view viewWithTag:(buttonTag + 100)];
+    //**2.(重要)设置当前选中的按钮号。如若不写，将导致滑动后再点击顶部按钮，上一个按钮颜色，字体不会改变
+    self.currentButtonTag = buttonTag + 100;
+    
+    //**3.始终保持顶部选中按钮在中间位置
+    //注意一：开始的几个按钮，和末尾的几个按钮并不需要一直保持中间。
+    //注意二：对于已经放置在firstScrollView中的按钮，它的center是相对于scrollView的content而言的，注意并不是相对于self.view的bounds而言的。也就是说，放置好按钮，它的center就不会再改变
+    
+    //如果是顶部scrollView即将到末尾的几个按钮，设置偏移量，直接return
+    if (buttonCurr.center.x + KSCREEN_WIDTH * 0.5 > self.firstScrollView.contentSize.width) {
+        [UIView animateWithDuration:0.3 animations:^{
+            self.firstScrollView.contentOffset = CGPointMake(self.firstScrollView.contentSize.width - KSCREEN_WIDTH, 0);
+          }];
+        return;
+    }
+    //如果是顶部scrollView开头的几个按钮，设置偏移量，直接return
+    if (buttonCurr.center.x < KSCREEN_WIDTH * 0.5) {
+        [UIView animateWithDuration:0.3 animations:^{
+            self.firstScrollView.contentOffset = CGPointMake(0, 0);
+        }];
+        return;
+    }
+    
+    //如果是中间几个按钮的情况
+    if (buttonCurr.center.x > (KSCREEN_WIDTH * 0.5)) {
+        [UIView animateWithDuration:0.3 animations:^{
+            self.firstScrollView.contentOffset = CGPointMake(buttonCurr.center.x - self.view.center.x, 0);
+        }];
+    }
+
 }
 
 
